@@ -5,10 +5,27 @@ import os
 
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example_workflows")
 
-UNET = "flux-2-klein-4b.safetensors"
-TE = "qwen_3_4b.safetensors"
-VAE = "flux2-vae.safetensors"
 REF = "monet_water_lilies.jpg"
+VAE = "flux2-vae.safetensors"
+VAE_URL = "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
+TE4 = ("qwen_3_4b.safetensors", "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors")
+TE9 = ("qwen_3_8b_fp8mixed.safetensors", "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors")
+
+# Model files and sampler settings follow ComfyUI's official Klein templates.
+VARIANTS = {
+    "4b": dict(label="FLUX.2 Klein 4B (distilled)",
+               unet=("flux-2-klein-4b.safetensors", "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors"),
+               te=TE4, steps=4, cfg=1.0, base=False, prompts=16, prefix="klein4b_monet"),
+    "4b-base": dict(label="FLUX.2 Klein 4B Base",
+                    unet=("flux-2-klein-base-4b-fp8.safetensors", "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors"),
+                    te=TE4, steps=20, cfg=5.0, base=True, prompts=8, prefix="klein4b_base_monet"),
+    "9b": dict(label="FLUX.2 Klein 9B (distilled, non-commercial)",
+               unet=("flux-2-klein-9b-fp8.safetensors", "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors"),
+               te=TE9, steps=4, cfg=1.0, base=False, prompts=16, prefix="klein9b_monet"),
+    "9b-base": dict(label="FLUX.2 Klein 9B Base (non-commercial)",
+                    unet=("flux-2-klein-base-9b-fp8.safetensors", "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors"),
+                    te=TE9, steps=20, cfg=5.0, base=True, prompts=8, prefix="klein9b_base_monet"),
+}
 PROMPTS = """a red fox in the snow
 a cat sitting on a windowsill
 a horse in a meadow
@@ -96,39 +113,35 @@ class Graph:
 PURPLE = ("#323", "#535")
 
 
-MODEL_URLS = {
-    UNET: ("diffusion_models", "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors"),
-    TE: ("text_encoders", "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors"),
-    VAE: ("vae", "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"),
-}
-
-
-def with_model(node, name):
-    directory, url = MODEL_URLS[name]
+def with_model(node, name, url, directory):
     node["properties"]["models"] = [{"name": name, "url": url, "directory": directory}]
     return node
 
 
-def loaders(g, y=0):
-    unet = with_model(g.add("UNETLoader", (0, y), [UNET, "default"], (330, 90)), UNET)
-    clip = with_model(g.add("CLIPLoader", (0, y + 130), [TE, "flux2", "default"], (330, 110)), TE)
-    vae = with_model(g.add("VAELoader", (0, y + 280), [VAE], (330, 60)), VAE)
+def loaders(g, v, y=0):
+    unet = with_model(g.add("UNETLoader", (0, y), [v["unet"][0], "default"], (330, 90)), *v["unet"], "diffusion_models")
+    clip = with_model(g.add("CLIPLoader", (0, y + 130), [v["te"][0], "flux2", "default"], (330, 110)), *v["te"], "text_encoders")
+    vae = with_model(g.add("VAELoader", (0, y + 280), [VAE], (330, 60)), VAE, VAE_URL, "vae")
     return unet, clip, vae
 
 
-def sampling_branch(g, x, y, model, clip, vae, prompt, seed, prefix, title):
+def sampling_branch(g, x, y, v, model, clip, vae, prompt, seed, prefix, title):
     pos = g.add("CLIPTextEncode", (x, y), [prompt], (360, 110), title=f"Prompt ({title})")
-    neg = g.add("ConditioningZeroOut", (x, y + 150), [], (240, 30))
-    guider = g.add("CFGGuider", (x + 400, y), [1.0], (240, 100))
+    if v["base"]:
+        neg = g.add("CLIPTextEncode", (x, y + 150), [""], (360, 90), title="Negative prompt")
+        g.link(clip, "CLIP", neg, "clip")
+    else:
+        neg = g.add("ConditioningZeroOut", (x, y + 150), [], (240, 30))
+        g.link(pos, "CONDITIONING", neg, "conditioning")
+    guider = g.add("CFGGuider", (x + 400, y), [v["cfg"]], (240, 100))
     sampler = g.add("KSamplerSelect", (x + 400, y + 140), ["euler"], (240, 60))
-    sigmas = g.add("Flux2Scheduler", (x + 400, y + 240), [4, 1024, 1024], (240, 110))
+    sigmas = g.add("Flux2Scheduler", (x + 400, y + 240), [v["steps"], 1024, 1024], (240, 110))
     noise = g.add("RandomNoise", (x + 400, y + 390), [seed, "fixed"], (240, 85))
     latent = g.add("EmptyFlux2LatentImage", (x + 400, y + 510), [1024, 1024, 1], (240, 110))
     sca = g.add("SamplerCustomAdvanced", (x + 680, y), [], (260, 110))
     dec = g.add("VAEDecode", (x + 680, y + 150), [], (200, 50))
     save = g.add("SaveImage", (x + 980, y), [prefix], (420, 460), title=title)
     g.link(clip, "CLIP", pos, "clip")
-    g.link(pos, "CONDITIONING", neg, "conditioning")
     g.link(model, "MODEL", guider, "model")
     g.link(pos, "CONDITIONING", guider, "positive")
     g.link(neg, "CONDITIONING", guider, "negative")
@@ -140,11 +153,17 @@ def sampling_branch(g, x, y, model, clip, vae, prompt, seed, prefix, title):
     g.link(dec, "IMAGE", save, "images")
 
 
-NOTE_1 = f"""## SHIFT reference-image style steering - FLUX.2 Klein 4B
+def note(v):
+    base_tip = ("- **Base model**: 20 steps, cfg 5, empty negative prompt. Extraction runs 8 prompts x 2 passes x 20 steps, so "
+                "it is ~5x slower than distilled. `step_bins = 4` averages the 20 steps into 4 groups to keep the vector small.\n"
+                if v["base"] else "")
+    nc = ("- 9B weights are under the FLUX Non-Commercial License: accept it on Hugging Face before downloading.\n"
+          if "9B" in v["label"] else "")
+    return f"""## SHIFT reference-image style steering - {v['label']}
 
 **1. Extract** (top): every prompt is run twice from the same noise, once with the reference image
-(Klein I2I = teacher) and once without (T2I = student). The double-stream block outputs are recorded
-at every step, reference tokens are cropped, and the mean difference is the steering field.
+(Klein I2I = teacher) and once without (T2I = student). The double-stream block outputs are recorded,
+reference tokens are cropped, and the mean difference is the steering field.
 
 **2. Generate** (bottom): plain text-to-image, **no reference image**. The apply node patches the
 double blocks: `h <- |h| (h + a v) / |h + a v|` on the image stream.
@@ -153,22 +172,21 @@ Left = unsteered, right = steered, same seed.
 Tips
 - `strength_img` 4-8 is a good start; sweep it. Large values copy the reference *content*.
 - Prompts for extraction: content only, no style words.
-- The vector is tied to the resolution and step grid used for extraction (1024x1024, 4 steps).
-  Other resolutions fall back to the token-pooled vector.
-- The vector is saved to `ComfyUI/models/shift_vectors/` - reuse it with workflow 02.
+{base_tip}{nc}- Vectors are model-specific (4B / 9B / base / distilled) and saved to `ComfyUI/models/shift_vectors/`.
 
-Models: `{UNET}` (diffusion_models), `{TE}` (text_encoders), `{VAE}` (vae).
+Models: `{v['unet'][0]}` (diffusion_models), `{v['te'][0]}` (text_encoders), `{VAE}` (vae).
 """
 
 
-def workflow_extract_and_generate():
+def workflow_extract_and_generate(key, v):
     g = Graph()
-    g.add("MarkdownNote", (-460, 0), [NOTE_1], (420, 620))
-    unet, clip, vae = loaders(g)
+    g.add("MarkdownNote", (-460, 0), [note(v)], (420, 680))
+    unet, clip, vae = loaders(g, v)
     ref = g.add("LoadImage", (0, 380), [REF, "image"], (330, 360), title="Style reference")
     ext = g.add("SHIFTExtractStyleVector", (380, 0),
-                [PROMPTS, 1024, 1024, 4, 1.0, 42000, "fixed", 16, 1.0, True], (420, 560), color=PURPLE)
-    save = g.add("SHIFTSaveStyleVector", (840, 0), ["klein4b_monet"], (300, 60), color=PURPLE)
+                [PROMPTS, 1024, 1024, v["steps"], v["cfg"], 42000, "fixed", v["prompts"], 1.0, True, 4, ""],
+                (420, 620), color=PURPLE)
+    save = g.add("SHIFTSaveStyleVector", (840, 0), [v["prefix"]], (300, 60), color=PURPLE)
     pv_t = g.add("PreviewImage", (840, 110), [], (380, 380), title="Teacher (prompt + reference)")
     pv_s = g.add("PreviewImage", (1240, 110), [], (380, 380), title="Student (prompt only)")
     for src, out_, in_ in ((unet, "MODEL", "model"), (clip, "CLIP", "clip"), (vae, "VAE", "vae"), (ref, "IMAGE", "reference_image")):
@@ -177,28 +195,32 @@ def workflow_extract_and_generate():
     g.link(ext, "teacher_i2i", pv_t, "images")
     g.link(ext, "student_t2i", pv_s, "images")
 
-    app = g.add("SHIFTApplyStyleVector", (0, 820),
+    app = g.add("SHIFTApplyStyleVector", (0, 880),
                 ["renorm_add", 6.0, 10.0, 0.0, "all", "all", "per_token", "cond_and_uncond"], (330, 260), color=PURPLE)
     g.link(unet, "MODEL", app, "model")
     g.link(ext, "shift_vector", app, "shift_vector")
-    sampling_branch(g, 380, 820, unet, clip, vae, TEST_PROMPT, 7, "shift_klein/unsteered", "Unsteered")
-    sampling_branch(g, 380, 1500, app, clip, vae, TEST_PROMPT, 7, "shift_klein/steered", "Steered (SHIFT)")
-    g.dump(os.path.join(OUT, "01_shift_klein4b_extract_and_generate.json"), "SHIFT Klein 4B - extract + generate")
+    sampling_branch(g, 380, 880, v, unet, clip, vae, TEST_PROMPT, 7, f"shift_klein/{key}_unsteered", "Unsteered")
+    sampling_branch(g, 380, 1560, v, app, clip, vae, TEST_PROMPT, 7, f"shift_klein/{key}_steered", "Steered (SHIFT)")
+    g.dump(os.path.join(OUT, f"shift_klein_{key}_extract_and_generate.json"), f"SHIFT {v['label']} - extract + generate")
 
 
-def workflow_generate_from_saved():
+def workflow_generate_from_saved(key, v):
     g = Graph()
-    unet, clip, vae = loaders(g)
-    load = g.add("SHIFTLoadStyleVector", (0, 380), ["klein4b_monet_00001.safetensors"], (330, 60), color=PURPLE)
+    unet, clip, vae = loaders(g, v)
+    load = g.add("SHIFTLoadStyleVector", (0, 380), [f"{v['prefix']}_00001.safetensors"], (330, 60), color=PURPLE)
     app = g.add("SHIFTApplyStyleVector", (0, 480),
                 ["renorm_add", 6.0, 10.0, 0.0, "all", "all", "per_token", "cond_and_uncond"], (330, 260), color=PURPLE)
     g.link(unet, "MODEL", app, "model")
     g.link(load, "shift_vector", app, "shift_vector")
-    sampling_branch(g, 380, 0, unet, clip, vae, TEST_PROMPT, 7, "shift_klein/unsteered", "Unsteered")
-    sampling_branch(g, 380, 680, app, clip, vae, TEST_PROMPT, 7, "shift_klein/steered", "Steered (SHIFT)")
-    g.dump(os.path.join(OUT, "02_shift_klein4b_generate_from_saved_vector.json"), "SHIFT Klein 4B - generate from saved vector")
+    sampling_branch(g, 380, 0, v, unet, clip, vae, TEST_PROMPT, 7, f"shift_klein/{key}_unsteered", "Unsteered")
+    sampling_branch(g, 380, 680, v, app, clip, vae, TEST_PROMPT, 7, f"shift_klein/{key}_steered", "Steered (SHIFT)")
+    g.dump(os.path.join(OUT, f"shift_klein_{key}_generate_from_saved_vector.json"), f"SHIFT {v['label']} - generate from saved vector")
 
 
 if __name__ == "__main__":
-    workflow_extract_and_generate()
-    workflow_generate_from_saved()
+    import glob
+    for old in glob.glob(os.path.join(OUT, "*.json")):
+        os.remove(old)
+    for key, v in VARIANTS.items():
+        workflow_extract_and_generate(key, v)
+        workflow_generate_from_saved(key, v)

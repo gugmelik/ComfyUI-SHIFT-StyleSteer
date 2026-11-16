@@ -131,6 +131,36 @@ dp = (run(mp) - plain).abs().mean().item()
 print(f"mean |steered - plain|: renorm_add a=6: {d6:.4f}  angle 15deg (blocks 0-1, steps 0-1): {da:.4f}  pooled+txt: {dp:.4f}")
 assert d6 > 1e-4 and da > 1e-4 and dp > 1e-4
 
+# ---- 4) Klein-base style: 12 steps, cfg 3, real negative prompt, 4 step bins -----------
+vb, _, _ = nodes.SHIFTExtractStyleVector().extract(
+    model, FakeClip(), FakeVAE(), ref_img, "a fox\na cat", W, H, 12, 3.0, 7, 16, 1.0, False, 4, "")
+print(vb.describe())
+assert vb.num_steps == 4 and len(vb.step_bins) == 12 and vb.step_bins == [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3], vb.step_bins
+assert vb.meta["num_prompts"] == 2
+res = nodes.SHIFTSaveStyleVector().save(vb, "smoke_base")
+(vb2,) = nodes.SHIFTLoadStyleVector().load(os.path.basename(res["ui"]["text"][0]))
+assert vb2.step_bins == vb.step_bins and vb2.step_for_sigma(vb.sigmas[5]) == 1
+
+
+def run_cfg(m, steps=12, cfg_scale=3.0, seed=3):
+    lat = comfy.sample.fix_empty_latent_channels(m, torch.zeros(1, 128, H // 16, W // 16))
+    noise = comfy.sample.prepare_noise(lat, seed)
+    cond = FakeClip().encode_from_tokens_scheduled("a horse")
+    neg = FakeClip().encode_from_tokens_scheduled("")
+    return comfy.sample.sample_custom(m, noise, cfg_scale, comfy.samplers.sampler_object("euler"),
+                                      nodes.flux2_schedule(steps, W, H), cond, neg, lat, disable_pbar=True, seed=seed)
+
+
+plain_b = run_cfg(model)
+(mb,) = apply(model, vb2, "renorm_add", 6.0, 10.0, 0.0, "all", "all", "per_token", "cond_and_uncond")
+(mbc,) = apply(model, vb2, "renorm_add", 6.0, 10.0, 0.0, "all", "0-1", "per_token", "cond_only")
+db, dbc = (run_cfg(mb) - plain_b).abs().mean().item(), (run_cfg(mbc) - plain_b).abs().mean().item()
+print(f"base-style cfg=3: steered all rows {db:.4f}, cond only / bins 0-1 {dbc:.4f}")
+assert db > 1e-4 and dbc > 1e-4
+# a 20-step run on a vector extracted with 12 steps maps by nearest sigma -> no crash
+_ = run_cfg(mb, steps=20)
+print("base-style OK")
+
 # other resolution -> falls back to the pooled vector instead of crashing
 H = W = 160
 _ = run(m6)

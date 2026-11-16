@@ -32,14 +32,14 @@
         "Node name for S&R": "UNETLoader",
         "models": [
           {
-            "name": "flux-2-klein-4b.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors",
+            "name": "flux-2-klein-base-4b-fp8.safetensors",
+            "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors",
             "directory": "diffusion_models"
           }
         ]
       },
       "widgets_values": [
-        "flux-2-klein-4b.safetensors",
+        "flux-2-klein-base-4b-fp8.safetensors",
         "default"
       ]
     },
@@ -64,7 +64,9 @@
           "type": "CLIP",
           "links": [
             3,
-            16
+            4,
+            16,
+            17
           ],
           "slot_index": 0
         }
@@ -154,7 +156,7 @@
         "Node name for S&R": "SHIFTLoadStyleVector"
       },
       "widgets_values": [
-        "klein4b_monet_00001.safetensors"
+        "klein4b_base_monet_00001.safetensors"
       ],
       "color": "#323",
       "bgcolor": "#535"
@@ -229,7 +231,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 3
+          "link": 4
         }
       ],
       "outputs": [
@@ -237,7 +239,6 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            4,
             6
           ],
           "slot_index": 0
@@ -253,23 +254,23 @@
     },
     {
       "id": 7,
-      "type": "ConditioningZeroOut",
+      "type": "CLIPTextEncode",
       "pos": [
         380,
         150
       ],
       "size": [
-        240,
-        30
+        360,
+        90
       ],
       "flags": {},
       "order": 6,
       "mode": 0,
       "inputs": [
         {
-          "name": "conditioning",
-          "type": "CONDITIONING",
-          "link": 4
+          "name": "clip",
+          "type": "CLIP",
+          "link": 3
         }
       ],
       "outputs": [
@@ -283,9 +284,12 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "ConditioningZeroOut"
+        "Node name for S&R": "CLIPTextEncode"
       },
-      "widgets_values": []
+      "widgets_values": [
+        ""
+      ],
+      "title": "Negative prompt"
     },
     {
       "id": 8,
@@ -332,7 +336,7 @@
         "Node name for S&R": "CFGGuider"
       },
       "widgets_values": [
-        1.0
+        5.0
       ]
     },
     {
@@ -396,7 +400,7 @@
         "Node name for S&R": "Flux2Scheduler"
       },
       "widgets_values": [
-        4,
+        20,
         1024,
         1024
       ]
@@ -597,7 +601,7 @@
         "Node name for S&R": "SaveImage"
       },
       "widgets_values": [
-        "shift_klein/unsteered"
+        "shift_klein/4b-base_unsteered"
       ],
       "title": "Unsteered"
     },
@@ -619,7 +623,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 16
+          "link": 17
         }
       ],
       "outputs": [
@@ -627,7 +631,6 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            17,
             19
           ],
           "slot_index": 0
@@ -643,23 +646,23 @@
     },
     {
       "id": 17,
-      "type": "ConditioningZeroOut",
+      "type": "CLIPTextEncode",
       "pos": [
         380,
         830
       ],
       "size": [
-        240,
-        30
+        360,
+        90
       ],
       "flags": {},
       "order": 16,
       "mode": 0,
       "inputs": [
         {
-          "name": "conditioning",
-          "type": "CONDITIONING",
-          "link": 17
+          "name": "clip",
+          "type": "CLIP",
+          "link": 16
         }
       ],
       "outputs": [
@@ -673,9 +676,12 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "ConditioningZeroOut"
+        "Node name for S&R": "CLIPTextEncode"
       },
-      "widgets_values": []
+      "widgets_values": [
+        ""
+      ],
+      "title": "Negative prompt"
     },
     {
       "id": 18,
@@ -722,7 +728,7 @@
         "Node name for S&R": "CFGGuider"
       },
       "widgets_values": [
-        1.0
+        5.0
       ]
     },
     {
@@ -786,7 +792,7 @@
         "Node name for S&R": "Flux2Scheduler"
       },
       "widgets_values": [
-        4,
+        20,
         1024,
         1024
       ]
@@ -987,7 +993,7 @@
         "Node name for S&R": "SaveImage"
       },
       "widgets_values": [
-        "shift_klein/steered"
+        "shift_klein/4b-base_steered"
       ],
       "title": "Steered (SHIFT)"
     }
@@ -1013,17 +1019,17 @@
       3,
       2,
       0,
-      6,
+      7,
       0,
       "CLIP"
     ],
     [
       4,
+      2,
+      0,
       6,
       0,
-      7,
-      0,
-      "CONDITIONING"
+      "CLIP"
     ],
     [
       5,
@@ -1117,17 +1123,17 @@
       16,
       2,
       0,
-      16,
+      17,
       0,
       "CLIP"
     ],
     [
       17,
+      2,
+      0,
       16,
       0,
-      17,
-      0,
-      "CONDITIONING"
+      "CLIP"
     ],
     [
       18,
@@ -1221,7 +1227,7 @@
   "groups": [],
   "config": {},
   "extra": {
-    "title": "SHIFT Klein 4B - generate from saved vector"
+    "title": "SHIFT FLUX.2 Klein 4B Base - generate from saved vector"
   },
   "version": 0.4
 }

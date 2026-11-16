@@ -17,6 +17,7 @@ import node_helpers
 
 from .shift_core import (
     ActivationRecorder,
+    make_step_bins,
     ShiftVector,
     make_apply_patch,
     parse_index_list,
@@ -112,14 +113,18 @@ class SHIFTExtractStyleVector:
                                        "tooltip": "One prompt per line (content only, no style words). Lines starting with # are skipped."}),
                 "width": ("INT", {"default": 1024, "min": 256, "max": 2048, "step": 16}),
                 "height": ("INT", {"default": 1024, "min": 256, "max": 2048, "step": 16}),
-                "steps": ("INT", {"default": 4, "min": 1, "max": 100, "tooltip": "4 for the distilled model, ~20-50 for base."}),
+                "steps": ("INT", {"default": 4, "min": 1, "max": 100, "tooltip": "4 for distilled Klein, 20 for Klein base."}),
                 "cfg": ("FLOAT", {"default": 1.0, "min": 1.0, "max": 20.0, "step": 0.1,
-                                  "tooltip": "1.0 for the distilled model. Only the positive (cond) rows are recorded."}),
+                                  "tooltip": "1.0 for distilled Klein, ~5 for Klein base. Only the positive (cond) rows are recorded."}),
                 "seed": ("INT", {"default": 42000, "min": 0, "max": 0xFFFFFFFFFFFFFFFF, "control_after_generate": True}),
                 "max_prompts": ("INT", {"default": 16, "min": 1, "max": 1000}),
                 "ref_max_megapixels": ("FLOAT", {"default": 1.0, "min": 0.05, "max": 4.0, "step": 0.05}),
                 "return_previews": ("BOOLEAN", {"default": True,
                                                 "tooltip": "Decode teacher (with reference) and student (prompt only) images for a visual check."}),
+                "step_bins": ("INT", {"default": 4, "min": 0, "max": 100,
+                                      "tooltip": "Store one field per group of steps (by sigma). 4 keeps vectors small for 20-step base models; 0 = one field per step."}),
+                "negative_prompt": ("STRING", {"multiline": False, "default": "",
+                                               "tooltip": "Only used when cfg > 1 (Klein base). Distilled models use a zeroed negative."}),
             }
         }
 
@@ -129,7 +134,7 @@ class SHIFTExtractStyleVector:
     CATEGORY = CATEGORY
 
     def extract(self, model, clip, vae, reference_image, prompts, width, height, steps, cfg, seed,
-                max_prompts, ref_max_megapixels, return_previews):
+                max_prompts, ref_max_megapixels, return_previews, step_bins=4, negative_prompt=""):
         prompt_list = [p.strip() for p in prompts.splitlines() if p.strip() and not p.strip().startswith("#")]
         prompt_list = prompt_list[:max_prompts]
         if not prompt_list:
@@ -142,7 +147,9 @@ class SHIFTExtractStyleVector:
         log.info("[SHIFT] extracting on %d prompts, %d double blocks, ref %dx%d, sigmas %s",
                  len(prompt_list), n_blocks, ref.shape[2], ref.shape[1], [round(float(s), 4) for s in sigmas])
 
-        recorder = ActivationRecorder(sigmas.tolist())
+        bins = make_step_bins(len(sigmas) - 1, step_bins)
+        recorder = ActivationRecorder(sigmas.tolist(), step_bins=bins)
+        neg_base = clip.encode_from_tokens_scheduled(clip.tokenize(negative_prompt)) if cfg > 1.0 else None
         m = model.clone()
         for i in range(n_blocks):
             m.set_model_patch_replace(recorder.make_patch(i), "dit", "double_block", i)
@@ -155,7 +162,7 @@ class SHIFTExtractStyleVector:
         pbar = comfy.utils.ProgressBar(2 * len(prompt_list))
         for idx, prompt in enumerate(prompt_list):
             cond = clip.encode_from_tokens_scheduled(clip.tokenize(prompt))
-            neg = zero_out(cond)
+            neg = neg_base if neg_base is not None else zero_out(cond)
             noise = comfy.sample.prepare_noise(latent, seed + idx)
             for positive in (True, False):
                 comfy.model_management.throw_exception_if_processing_interrupted()
@@ -172,6 +179,7 @@ class SHIFTExtractStyleVector:
                 pbar.update(1)
 
         vec = recorder.to_vector({"width": width, "height": height, "steps": steps, "cfg": cfg,
+                                  "negative_prompt": negative_prompt if cfg > 1.0 else None,
                                   "num_double_blocks": n_blocks,
                                   "ref_size": [int(ref.shape[2]), int(ref.shape[1])]})
         log.info("[SHIFT] %s", vec.describe())
@@ -198,7 +206,7 @@ class SHIFTApplyStyleVector:
                 "strength_txt": ("FLOAT", {"default": 0.0, "min": -200.0, "max": 200.0, "step": 0.5,
                                            "tooltip": "alpha for the text stream (0 = image-stream only, the paper setting)."}),
                 "blocks": ("STRING", {"default": "all", "tooltip": "Double blocks to steer: 'all' or e.g. '0-3' or '0,2,4'."}),
-                "steps": ("STRING", {"default": "all", "tooltip": "Steps of the extraction grid to steer: 'all' or e.g. '0,1'."}),
+                "steps": ("STRING", {"default": "all", "tooltip": "Step bins of the vector to steer: 'all' or e.g. '0,1' (bin 0 = earliest, noisiest steps)."}),
                 "vector_field": (["per_token", "pooled"], {"default": "per_token",
                                  "tooltip": "per_token = 2-D field (needs the extraction resolution). pooled = one vector per block, any resolution."}),
                 "apply_to": (["cond_and_uncond", "cond_only"], {"default": "cond_and_uncond"}),

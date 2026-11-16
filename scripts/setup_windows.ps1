@@ -8,8 +8,13 @@
 #   powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1 -SkipModels      # models already downloaded
 #   powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1 -Cuda cu126       # older NVIDIA driver
 #   powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1 -ComfyDir D:\ComfyUI   # use / create another ComfyUI
+#   powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1 -Models 4b,9b           # which Klein variants
 #
+# -Models: 4b (default), 4b-base, 9b, 9b-base, all.
+# 9B models are gated (FLUX Non-Commercial License): accept the license on each Hugging Face page
+# and set a read token first:  $env:HF_TOKEN = "hf_..."
 param(
+    [string[]]$Models = @("4b"),
     [string]$Cuda = "cu128",
     [switch]$SkipModels,
     [string]$Python = "",
@@ -75,18 +80,34 @@ New-Item -ItemType Directory -Force -Path (Join-Path $Comfy "models\shift_vector
 
 # ---------------------------------------------------------------- models
 if (-not $SkipModels) {
-    Step "Downloading FLUX.2 Klein 4B (Apache-2.0) - about 15 GB in total, resumable"
-    $Models = @(
-        @{ dir = "diffusion_models"; name = "flux-2-klein-4b.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors" },
-        @{ dir = "text_encoders";    name = "qwen_3_4b.safetensors";       url = "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors" },
-        @{ dir = "vae";              name = "flux2-vae.safetensors";       url = "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors" }
-    )
-    foreach ($m in $Models) {
+    $TE4 = @{ dir = "text_encoders"; name = "qwen_3_4b.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors" }
+    $TE9 = @{ dir = "text_encoders"; name = "qwen_3_8b_fp8mixed.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors" }
+    $VAE = @{ dir = "vae"; name = "flux2-vae.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors" }
+    $Catalog = @{
+        "4b"      = @(@{ dir = "diffusion_models"; name = "flux-2-klein-4b.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors" }, $TE4, $VAE)
+        "4b-base" = @(@{ dir = "diffusion_models"; name = "flux-2-klein-base-4b-fp8.safetensors"; url = "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors" }, $TE4, $VAE)
+        "9b"      = @(@{ dir = "diffusion_models"; name = "flux-2-klein-9b-fp8.safetensors"; url = "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors" }, $TE9, $VAE)
+        "9b-base" = @(@{ dir = "diffusion_models"; name = "flux-2-klein-base-9b-fp8.safetensors"; url = "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors" }, $TE9, $VAE)
+    }
+    $Wanted = @()
+    foreach ($m in ($Models -split ",")) { $m = $m.Trim().ToLower(); if ($m -eq "all") { $Wanted += $Catalog.Keys } elseif ($m) { $Wanted += $m } }
+    $Files = @{}
+    foreach ($k in ($Wanted | Select-Object -Unique)) {
+        if (-not $Catalog.ContainsKey($k)) { throw "Unknown model '$k'. Use: 4b, 4b-base, 9b, 9b-base, all" }
+        foreach ($f in $Catalog[$k]) { $Files[$f.name] = $f }
+    }
+    Step ("Downloading models for: " + (($Wanted | Select-Object -Unique) -join ", ") + " (resumable)")
+    foreach ($m in $Files.Values) {
         $dst = Join-Path $Comfy ("models\" + $m.dir + "\" + $m.name)
         New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
         Write-Host "  $($m.name) -> models\$($m.dir)"
-        & curl.exe -L --fail -C - -o $dst $m.url
-        if ($LASTEXITCODE -ne 0) { throw "download failed: $($m.url)" }
+        $curlArgs = @("-L", "--fail", "-C", "-", "-o", $dst)
+        if ($m.url -like "*black-forest-labs*") {
+            if (-not $env:HF_TOKEN) { Write-Warning "  $($m.name) is on a gated BFL repo: set `$env:HF_TOKEN and accept the license on Hugging Face if this fails." }
+            else { $curlArgs += @("-H", "Authorization: Bearer $($env:HF_TOKEN)") }
+        }
+        & curl.exe @curlArgs $m.url
+        if ($LASTEXITCODE -ne 0) { throw "download failed: $($m.url)  (gated repo? open it in the browser, accept the license, set HF_TOKEN)" }
     }
 }
 

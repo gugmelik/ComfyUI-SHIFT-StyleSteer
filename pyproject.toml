@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-shift-style-steer"
-description = "SHIFT reference-image style steering for FLUX.2 Klein (4B/9B): extract an activation-steering vector from one style image, then generate plain text-to-image in that style, with no reference image at inference."
-version = "0.1.0"
+description = "SHIFT reference-image style steering for FLUX.2 Klein (4B, 4B Base, 9B, 9B Base): extract an activation-steering vector from one style image, then generate plain text-to-image in that style, with no reference image at inference."
+version = "0.2.0"
 license = { file = "LICENSE.txt" }
 dependencies = []  # torch and safetensors come with ComfyUI
 

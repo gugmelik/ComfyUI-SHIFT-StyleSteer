@@ -7,5 +7,5 @@ if (-not (Test-Path $Cfg)) { throw "Run scripts\setup_windows.ps1 first." }
 $Comfy = (Get-Content $Cfg -Raw).Trim()
 $Py   = Join-Path $Comfy ".venv\Scripts\python.exe"
 
-Write-Host "ComfyUI -> http://127.0.0.1:8188  (Workflows panel: 01_shift_klein4b_extract_and_generate)" -ForegroundColor Cyan
+Write-Host "ComfyUI -> http://127.0.0.1:8188  (Workflows panel: shift_klein_<variant>_extract_and_generate)" -ForegroundColor Cyan
 & $Py (Join-Path $Comfy "main.py") --listen 127.0.0.1 --port 8188 @args

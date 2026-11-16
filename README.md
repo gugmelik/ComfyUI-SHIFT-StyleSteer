@@ -1,6 +1,6 @@
 # ComfyUI-SHIFT-StyleSteer
 
-Reference-image style steering for **FLUX.2 Klein** (4B / 9B) in ComfyUI.
+Reference-image style steering for **FLUX.2 Klein** in ComfyUI: 4B, 4B Base, 9B and 9B Base.
 
 The style comes from one reference image, and that image is used only once. Each prompt is run
 twice from the same noise: once *with* the reference (Klein I2I, the teacher) and once *without*
@@ -53,15 +53,31 @@ git clone https://github.com/gugmelik/ComfyUI-SHIFT-StyleSteer
 
 The node has no extra Python dependencies: it only uses torch and safetensors, which come with ComfyUI.
 
-### Models (FLUX.2 Klein 4B, Apache-2.0, ungated)
+### Models
 
-Download these three files into your ComfyUI `models` folders:
+Four Klein variants are supported. Each has its own example workflow, with the sampler settings from
+ComfyUI's official Klein templates:
 
-| File | Folder | Link |
-| --- | --- | --- |
-| `flux-2-klein-4b.safetensors` (7.2 GB) | `models/diffusion_models` | [download](https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors) |
-| `qwen_3_4b.safetensors` (7.5 GB) | `models/text_encoders` | [download](https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors) |
-| `flux2-vae.safetensors` (0.3 GB) | `models/vae` | [download](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors) |
+| Variant | Diffusion model (`models/diffusion_models`) | Text encoder (`models/text_encoders`) | Sampling | License |
+| --- | --- | --- | --- | --- |
+| **4B** (distilled) | [`flux-2-klein-4b.safetensors`](https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors) | [`qwen_3_4b.safetensors`](https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors) | 4 steps, cfg 1 | Apache-2.0 |
+| **4B Base** | [`flux-2-klein-base-4b-fp8.safetensors`](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors) | `qwen_3_4b.safetensors` | 20 steps, cfg 5 | Apache-2.0 |
+| **9B** (distilled) | [`flux-2-klein-9b-fp8.safetensors`](https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors) | [`qwen_3_8b_fp8mixed.safetensors`](https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors) | 4 steps, cfg 1 | FLUX Non-Commercial |
+| **9B Base** | [`flux-2-klein-base-9b-fp8.safetensors`](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors) | `qwen_3_8b_fp8mixed.safetensors` | 20 steps, cfg 5 | FLUX Non-Commercial |
+
+All four use the same VAE: [`flux2-vae.safetensors`](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors), in `models/vae`.
+
+The **9B** repos are gated. Open each model page on Hugging Face, accept the FLUX Non-Commercial
+License, and download while signed in (or with a token). The BFL 4B Base repo may also ask you to
+accept its terms.
+
+To download from a terminal into an existing ComfyUI (for example on RunPod):
+
+```bash
+cd ComfyUI/custom_nodes/ComfyUI-SHIFT-StyleSteer
+COMFY_DIR=/workspace/ComfyUI MODELS="4b 9b" HF_TOKEN=hf_... bash scripts/download_models.sh
+# MODELS: 4b 4b-base 9b 9b-base all     (HF_TOKEN only needed for the black-forest-labs repos)
+```
 
 The example workflows carry these download links too, so ComfyUI's missing-models dialog can
 offer them when you open a workflow.
@@ -72,10 +88,11 @@ offer them when you open a workflow.
 
 1. Open an example workflow. The JSON files are in `example_workflows/`, and ComfyUI also lists them
    under **Templates** in this node pack's section. You can also drag a JSON file onto the canvas.
-   - **`01_shift_klein4b_extract_and_generate`** extracts a vector, saves it, then renders an
+   There are two per variant (`4b`, `4b-base`, `9b`, `9b-base`):
+   - **`shift_klein_<variant>_extract_and_generate`** extracts a vector, saves it, then renders an
      unsteered and a steered image with the same seed.
-   - **`02_shift_klein4b_generate_from_saved_vector`** loads a saved vector and generates, without
-     extracting again.
+   - **`shift_klein_<variant>_generate_from_saved_vector`** loads a saved vector and generates,
+     without extracting again.
 2. **Style reference** (Load Image): upload any image. `references/` contains CC0 examples; copy
    `monet_water_lilies.jpg` into `ComfyUI/input` to use the workflow's default.
 3. Press **Run**. The *Teacher* previews should show the style. If they don't, the vector won't
@@ -83,14 +100,21 @@ offer them when you open a workflow.
 4. Tune **SHIFT Apply Style Steering**:
    - `strength_img`: start at 6 and sweep 2–12.
    - `mode = angle` with `angle_deg` 5–20: a fixed rotation per token.
-   - `blocks` / `steps` (e.g. `0-2`, `0,1`): restrict steering to some blocks or steps.
+   - `blocks` / `steps` (e.g. `0-2`, `0,1`): restrict steering to some blocks or step bins
+     (bin 0 = the earliest, noisiest steps).
    - `vector_field = pooled`: one vector per block, so it works at any resolution.
 
-Vectors are saved to `ComfyUI/models/shift_vectors/`. Extract again for each style and each model
-(4B and 9B vectors are not interchangeable).
+Vectors are saved to `ComfyUI/models/shift_vectors/`. Extract again for each style and each model:
+vectors from 4B, 9B, base and distilled are not interchangeable.
 
-**Hardware:** an NVIDIA GPU with 16 GB of VRAM or more is comfortable. With 8–12 GB, start ComfyUI
-with `--lowvram`.
+**Base models:** they need 20 steps at cfg 5 with an empty negative prompt. The base workflows use
+8 extraction prompts, and extraction is about 5× slower than with the distilled models.
+`step_bins = 4` groups the 20 steps (by sigma) into 4 fields, so the vector stays about the same
+size as a distilled one. Set it to `0` to keep one field per step; that makes the vector about 5×
+larger.
+
+**Hardware:** for 4B, an NVIDIA GPU with 16 GB of VRAM or more is comfortable; with 8–12 GB, start
+ComfyUI with `--lowvram`. For 9B (fp8), plan on 24 GB or more.
 
 ---
 
@@ -112,8 +136,10 @@ powershell -ExecutionPolicy Bypass -File scripts\run_windows.ps1          # http
 bash scripts/setup_linux.sh && bash scripts/run_linux.sh             # port 8188
 ```
 
-Options: `-Cuda cu126` for older drivers, `-SkipModels` if the models are already downloaded,
-`-ComfyDir D:\ComfyUI` to use another ComfyUI folder. On Linux, use `COMFY_DIR=/path`.
+Options: `-Models 4b,9b` (or `4b-base`, `9b-base`, `all`; the default is `4b`), `-Cuda cu126` for
+older drivers, `-SkipModels` if the models are already downloaded, `-ComfyDir D:\ComfyUI` to use
+another ComfyUI folder. For the gated repos, set `$env:HF_TOKEN = "hf_..."` first.
+On Linux, the same options are `MODELS="4b 9b"`, `HF_TOKEN=...` and `COMFY_DIR=/path`.
 
 ```
 ComfyUI-SHIFT-StyleSteer/
@@ -131,7 +157,7 @@ ComfyUI-SHIFT-StyleSteer/
 
 | Node | Inputs | Output |
 | --- | --- | --- |
-| **SHIFT Extract Style Vector (Klein)** | MODEL, CLIP, VAE, reference IMAGE, prompts (one per line), width/height (1024), steps (4), cfg (1.0), seed, max_prompts, ref_max_megapixels | `SHIFT_VECTOR`, teacher images, student images |
+| **SHIFT Extract Style Vector (Klein)** | MODEL, CLIP, VAE, reference IMAGE, prompts (one per line), width/height (1024), steps (4 / 20 base), cfg (1 / 5 base), seed, max_prompts, ref_max_megapixels, step_bins (4), negative_prompt (base only) | `SHIFT_VECTOR`, teacher images, student images |
 | **SHIFT Apply Style Steering (Klein)** | MODEL, SHIFT_VECTOR, mode, strength_img, angle_deg, strength_txt, blocks, steps, vector_field, apply_to | patched MODEL |
 | **SHIFT Save Style Vector** | SHIFT_VECTOR, filename_prefix | `models/shift_vectors/<prefix>_00001.safetensors` |
 | **SHIFT Load Style Vector** | file name | SHIFT_VECTOR |
@@ -146,11 +172,12 @@ A few details:
   with a different step count therefore still maps to the closest extracted step.
 - **CFG > 1 is supported** (Klein *base*). Only the cond rows are recorded during extraction. With
   `apply_to = cond_only`, only the cond rows are steered.
-- **The vector file** is safetensors with keys `img.s{step}.b{block}` and `txt.s{step}.b{block}`,
-  plus metadata (sigmas, resolution, prompt count). At 1024² it is a few hundred MB to ~1 GB in fp16,
-  depending on the model size.
-- **Using 9B:** load `flux-2-klein-9b*.safetensors` + `qwen_3_8b*.safetensors` and extract again.
-  Vectors are model-specific. Note that the 9B weights are non-commercial.
+- **Step bins.** `step_bins` maps the extraction steps to bins by position in the schedule
+  (20 steps / 4 bins = 5 steps per bin). All steps in a bin share one averaged field, and at apply
+  time each model call uses the bin of its nearest extraction sigma.
+- **The vector file** is safetensors with keys `img.s{bin}.b{block}` and `txt.s{bin}.b{block}`,
+  plus metadata (sigmas, step_bins, resolution, prompt count, negative prompt). At 1024² with 4 bins
+  it is a few hundred MB (4B) to about 1 GB (9B) in fp16.
 
 ---
 
@@ -160,7 +187,8 @@ A few details:
 | --- | --- |
 | SHIFT nodes are red / missing | Check the ComfyUI console for `IMPORT FAILED ... ComfyUI-SHIFT-StyleSteer`. Make sure `ComfyUI/custom_nodes/ComfyUI-SHIFT-StyleSteer/__init__.py` exists, then restart ComfyUI. |
 | `this MODEL has no double_blocks` | The Load Diffusion Model node isn't pointing at a Klein file. |
-| Loader nodes are red | The model files are missing. Download the three files from the Models table into `ComfyUI/models/{diffusion_models,text_encoders,vae}`. |
+| Loader nodes are red | The model files are missing. Download them from the Models table into `ComfyUI/models/{diffusion_models,text_encoders,vae}`, or use `scripts/download_models.sh`. |
+| 401 / 403 when downloading 9B | Accept the license on the model's Hugging Face page, then pass `HF_TOKEN`. |
 | Out of memory | Start with `--lowvram`, lower `max_prompts` to 8, or use RunPod. |
 | Warning `using the token-pooled vector` | The generation resolution differs from the extraction resolution. Extract again at that size for the per-token field. |
 | Steered image ≈ unsteered | Raise `strength_img`, and check that the teacher previews actually show the style. |
@@ -170,4 +198,5 @@ A few details:
 - Method: N. Konovalova, A. Kuznetsov, A. Alanov, *SHIFT: Steering hidden intermediates in flow
   transformers*, arXiv:2604.09213 (MIT). Reference-image extension for Klein: SHIFT branch `flux-klein`.
 - Reference images: see `references/SOURCES.md` (AIC Open Access, CC0).
-- FLUX.2 [klein] 4B: Black Forest Labs, Apache-2.0.
+- FLUX.2 [klein] 4B / 4B Base: Black Forest Labs, Apache-2.0. FLUX.2 [klein] 9B / 9B Base: Black Forest
+  Labs, FLUX Non-Commercial License.

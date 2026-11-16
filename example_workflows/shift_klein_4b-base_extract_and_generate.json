@@ -11,7 +11,7 @@
       ],
       "size": [
         420,
-        620
+        680
       ],
       "flags": {},
       "order": 0,
@@ -22,7 +22,7 @@
         "Node name for S&R": "MarkdownNote"
       },
       "widgets_values": [
-        "## SHIFT reference-image style steering - FLUX.2 Klein 4B\n\n**1. Extract** (top): every prompt is run twice from the same noise, once with the reference image\n(Klein I2I = teacher) and once without (T2I = student). The double-stream block outputs are recorded\nat every step, reference tokens are cropped, and the mean difference is the steering field.\n\n**2. Generate** (bottom): plain text-to-image, **no reference image**. The apply node patches the\ndouble blocks: `h <- |h| (h + a v) / |h + a v|` on the image stream.\nLeft = unsteered, right = steered, same seed.\n\nTips\n- `strength_img` 4-8 is a good start; sweep it. Large values copy the reference *content*.\n- Prompts for extraction: content only, no style words.\n- The vector is tied to the resolution and step grid used for extraction (1024x1024, 4 steps).\n  Other resolutions fall back to the token-pooled vector.\n- The vector is saved to `ComfyUI/models/shift_vectors/` - reuse it with workflow 02.\n\nModels: `flux-2-klein-4b.safetensors` (diffusion_models), `qwen_3_4b.safetensors` (text_encoders), `flux2-vae.safetensors` (vae).\n"
+        "## SHIFT reference-image style steering - FLUX.2 Klein 4B Base\n\n**1. Extract** (top): every prompt is run twice from the same noise, once with the reference image\n(Klein I2I = teacher) and once without (T2I = student). The double-stream block outputs are recorded,\nreference tokens are cropped, and the mean difference is the steering field.\n\n**2. Generate** (bottom): plain text-to-image, **no reference image**. The apply node patches the\ndouble blocks: `h <- |h| (h + a v) / |h + a v|` on the image stream.\nLeft = unsteered, right = steered, same seed.\n\nTips\n- `strength_img` 4-8 is a good start; sweep it. Large values copy the reference *content*.\n- Prompts for extraction: content only, no style words.\n- **Base model**: 20 steps, cfg 5, empty negative prompt. Extraction runs 8 prompts x 2 passes x 20 steps, so it is ~5x slower than distilled. `step_bins = 4` averages the 20 steps into 4 groups to keep the vector small.\n- Vectors are model-specific (4B / 9B / base / distilled) and saved to `ComfyUI/models/shift_vectors/`.\n\nModels: `flux-2-klein-base-4b-fp8.safetensors` (diffusion_models), `qwen_3_4b.safetensors` (text_encoders), `flux2-vae.safetensors` (vae).\n"
       ]
     },
     {
@@ -56,14 +56,14 @@
         "Node name for S&R": "UNETLoader",
         "models": [
           {
-            "name": "flux-2-klein-4b.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors",
+            "name": "flux-2-klein-base-4b-fp8.safetensors",
+            "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors",
             "directory": "diffusion_models"
           }
         ]
       },
       "widgets_values": [
-        "flux-2-klein-4b.safetensors",
+        "flux-2-klein-base-4b-fp8.safetensors",
         "default"
       ]
     },
@@ -89,7 +89,9 @@
           "links": [
             2,
             10,
-            23
+            11,
+            23,
+            24
           ],
           "slot_index": 0
         }
@@ -200,7 +202,7 @@
       ],
       "size": [
         420,
-        560
+        620
       ],
       "flags": {},
       "order": 5,
@@ -261,13 +263,15 @@
         "a red fox in the snow\na cat sitting on a windowsill\na horse in a meadow\nan owl on a branch\na sea turtle swimming\na lighthouse on a rocky coast\na bowl of fruit on a wooden table\na city street at dusk\na mountain lake at sunrise\na steam train crossing a bridge\nan old man reading a newspaper\na sailboat on a calm sea\na castle on a hill\na dog running on a beach\na vase of sunflowers\na market square with people",
         1024,
         1024,
-        4,
-        1.0,
+        20,
+        5.0,
         42000,
         "fixed",
-        16,
+        8,
         1.0,
-        true
+        true,
+        4,
+        ""
       ],
       "color": "#323",
       "bgcolor": "#535"
@@ -298,7 +302,7 @@
         "Node name for S&R": "SHIFTSaveStyleVector"
       },
       "widgets_values": [
-        "klein4b_monet"
+        "klein4b_base_monet"
       ],
       "color": "#323",
       "bgcolor": "#535"
@@ -364,7 +368,7 @@
       "type": "SHIFTApplyStyleVector",
       "pos": [
         0,
-        820
+        880
       ],
       "size": [
         330,
@@ -416,7 +420,7 @@
       "type": "CLIPTextEncode",
       "pos": [
         380,
-        820
+        880
       ],
       "size": [
         360,
@@ -429,7 +433,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 10
+          "link": 11
         }
       ],
       "outputs": [
@@ -437,7 +441,6 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            11,
             13
           ],
           "slot_index": 0
@@ -453,23 +456,23 @@
     },
     {
       "id": 12,
-      "type": "ConditioningZeroOut",
+      "type": "CLIPTextEncode",
       "pos": [
         380,
-        970
+        1030
       ],
       "size": [
-        240,
-        30
+        360,
+        90
       ],
       "flags": {},
       "order": 11,
       "mode": 0,
       "inputs": [
         {
-          "name": "conditioning",
-          "type": "CONDITIONING",
-          "link": 11
+          "name": "clip",
+          "type": "CLIP",
+          "link": 10
         }
       ],
       "outputs": [
@@ -483,16 +486,19 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "ConditioningZeroOut"
+        "Node name for S&R": "CLIPTextEncode"
       },
-      "widgets_values": []
+      "widgets_values": [
+        ""
+      ],
+      "title": "Negative prompt"
     },
     {
       "id": 13,
       "type": "CFGGuider",
       "pos": [
         780,
-        820
+        880
       ],
       "size": [
         240,
@@ -532,7 +538,7 @@
         "Node name for S&R": "CFGGuider"
       },
       "widgets_values": [
-        1.0
+        5.0
       ]
     },
     {
@@ -540,7 +546,7 @@
       "type": "KSamplerSelect",
       "pos": [
         780,
-        960
+        1020
       ],
       "size": [
         240,
@@ -572,7 +578,7 @@
       "type": "Flux2Scheduler",
       "pos": [
         780,
-        1060
+        1120
       ],
       "size": [
         240,
@@ -596,7 +602,7 @@
         "Node name for S&R": "Flux2Scheduler"
       },
       "widgets_values": [
-        4,
+        20,
         1024,
         1024
       ]
@@ -606,7 +612,7 @@
       "type": "RandomNoise",
       "pos": [
         780,
-        1210
+        1270
       ],
       "size": [
         240,
@@ -639,7 +645,7 @@
       "type": "EmptyFlux2LatentImage",
       "pos": [
         780,
-        1330
+        1390
       ],
       "size": [
         240,
@@ -673,7 +679,7 @@
       "type": "SamplerCustomAdvanced",
       "pos": [
         1060,
-        820
+        880
       ],
       "size": [
         260,
@@ -735,7 +741,7 @@
       "type": "VAEDecode",
       "pos": [
         1060,
-        970
+        1030
       ],
       "size": [
         200,
@@ -776,7 +782,7 @@
       "type": "SaveImage",
       "pos": [
         1360,
-        820
+        880
       ],
       "size": [
         420,
@@ -797,7 +803,7 @@
         "Node name for S&R": "SaveImage"
       },
       "widgets_values": [
-        "shift_klein/unsteered"
+        "shift_klein/4b-base_unsteered"
       ],
       "title": "Unsteered"
     },
@@ -806,7 +812,7 @@
       "type": "CLIPTextEncode",
       "pos": [
         380,
-        1500
+        1560
       ],
       "size": [
         360,
@@ -819,7 +825,7 @@
         {
           "name": "clip",
           "type": "CLIP",
-          "link": 23
+          "link": 24
         }
       ],
       "outputs": [
@@ -827,7 +833,6 @@
           "name": "CONDITIONING",
           "type": "CONDITIONING",
           "links": [
-            24,
             26
           ],
           "slot_index": 0
@@ -843,23 +848,23 @@
     },
     {
       "id": 22,
-      "type": "ConditioningZeroOut",
+      "type": "CLIPTextEncode",
       "pos": [
         380,
-        1650
+        1710
       ],
       "size": [
-        240,
-        30
+        360,
+        90
       ],
       "flags": {},
       "order": 21,
       "mode": 0,
       "inputs": [
         {
-          "name": "conditioning",
-          "type": "CONDITIONING",
-          "link": 24
+          "name": "clip",
+          "type": "CLIP",
+          "link": 23
         }
       ],
       "outputs": [
@@ -873,16 +878,19 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "ConditioningZeroOut"
+        "Node name for S&R": "CLIPTextEncode"
       },
-      "widgets_values": []
+      "widgets_values": [
+        ""
+      ],
+      "title": "Negative prompt"
     },
     {
       "id": 23,
       "type": "CFGGuider",
       "pos": [
         780,
-        1500
+        1560
       ],
       "size": [
         240,
@@ -922,7 +930,7 @@
         "Node name for S&R": "CFGGuider"
       },
       "widgets_values": [
-        1.0
+        5.0
       ]
     },
     {
@@ -930,7 +938,7 @@
       "type": "KSamplerSelect",
       "pos": [
         780,
-        1640
+        1700
       ],
       "size": [
         240,
@@ -962,7 +970,7 @@
       "type": "Flux2Scheduler",
       "pos": [
         780,
-        1740
+        1800
       ],
       "size": [
         240,
@@ -986,7 +994,7 @@
         "Node name for S&R": "Flux2Scheduler"
       },
       "widgets_values": [
-        4,
+        20,
         1024,
         1024
       ]
@@ -996,7 +1004,7 @@
       "type": "RandomNoise",
       "pos": [
         780,
-        1890
+        1950
       ],
       "size": [
         240,
@@ -1029,7 +1037,7 @@
       "type": "EmptyFlux2LatentImage",
       "pos": [
         780,
-        2010
+        2070
       ],
       "size": [
         240,
@@ -1063,7 +1071,7 @@
       "type": "SamplerCustomAdvanced",
       "pos": [
         1060,
-        1500
+        1560
       ],
       "size": [
         260,
@@ -1125,7 +1133,7 @@
       "type": "VAEDecode",
       "pos": [
         1060,
-        1650
+        1710
       ],
       "size": [
         200,
@@ -1166,7 +1174,7 @@
       "type": "SaveImage",
       "pos": [
         1360,
-        1500
+        1560
       ],
       "size": [
         420,
@@ -1187,7 +1195,7 @@
         "Node name for S&R": "SaveImage"
       },
       "widgets_values": [
-        "shift_klein/steered"
+        "shift_klein/4b-base_steered"
       ],
       "title": "Steered (SHIFT)"
     }
@@ -1269,17 +1277,17 @@
       10,
       3,
       0,
-      11,
+      12,
       0,
       "CLIP"
     ],
     [
       11,
+      3,
+      0,
       11,
       0,
-      12,
-      0,
-      "CONDITIONING"
+      "CLIP"
     ],
     [
       12,
@@ -1373,17 +1381,17 @@
       23,
       3,
       0,
-      21,
+      22,
       0,
       "CLIP"
     ],
     [
       24,
+      3,
+      0,
       21,
       0,
-      22,
-      0,
-      "CONDITIONING"
+      "CLIP"
     ],
     [
       25,
@@ -1477,7 +1485,7 @@
   "groups": [],
   "config": {},
   "extra": {
-    "title": "SHIFT Klein 4B - extract + generate"
+    "title": "SHIFT FLUX.2 Klein 4B Base - extract + generate"
   },
   "version": 0.4
 }

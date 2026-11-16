@@ -34,16 +34,28 @@ STREAMS = ("img", "txt")
 # --------------------------------------------------------------------------------------
 # Steering vector container
 # --------------------------------------------------------------------------------------
-class ShiftVector:
-    """Per-(step, block, stream) steering fields, plus the sigma grid they were extracted on.
+def make_step_bins(num_steps: int, bins: int) -> List[int]:
+    """Map sampler steps to bins: 20 steps / 4 bins -> [0,0,0,0,0,1,1,...,3]. bins<=0 -> one per step."""
+    if bins <= 0 or bins >= num_steps:
+        return list(range(num_steps))
+    return [min(i * bins // num_steps, bins - 1) for i in range(num_steps)]
 
-    tensors[(stream, step, block)] -> (T, D) float16 on CPU
+
+class ShiftVector:
+    """Per-(bin, block, stream) steering fields, plus the sigma grid they were extracted on.
+
+    tensors[(stream, bin, block)] -> (T, D) float16 on CPU
+    step_bins[i] = bin used for sampler step i of the extraction grid (identity when every
+    step has its own field, e.g. 4-step distilled Klein).
     """
 
-    def __init__(self, tensors: Dict[Tuple[str, int, int], torch.Tensor], sigmas: List[float], meta: dict):
+    def __init__(self, tensors: Dict[Tuple[str, int, int], torch.Tensor], sigmas: List[float], meta: dict,
+                 step_bins: Optional[List[int]] = None):
         self.tensors = tensors
         self.sigmas = [float(s) for s in sigmas]
         self.meta = dict(meta)
+        n_calls = max(len(self.sigmas) - 1, 1)
+        self.step_bins = list(step_bins) if step_bins else list(range(n_calls))
         self._cache: Dict[tuple, torch.Tensor] = {}
         self._warned = set()
 
@@ -60,15 +72,17 @@ class ShiftVector:
         shapes = {}
         for (stream, step, block), t in self.tensors.items():
             shapes.setdefault(stream, tuple(t.shape))
-        return (f"SHIFT vector: {self.num_steps} steps x {self.num_blocks} double blocks, "
+        return (f"SHIFT vector: {self.num_steps} step bins ({len(self.step_bins)} sampler steps) x "
+                f"{self.num_blocks} double blocks, "
                 f"streams {shapes}, sigmas {[round(s, 4) for s in self.sigmas]}, "
                 f"{self.meta.get('num_prompts', '?')} prompts, extracted at "
                 f"{self.meta.get('width', '?')}x{self.meta.get('height', '?')}")
 
     def step_for_sigma(self, sigma: float) -> int:
-        """Nearest step of the extraction grid (the final sigma=0 is not a model call)."""
+        """Bin of the nearest step of the extraction grid (the final sigma=0 is not a model call)."""
         grid = self.sigmas[:-1] if len(self.sigmas) > 1 else self.sigmas
-        return int(min(range(len(grid)), key=lambda i: abs(grid[i] - sigma)))
+        step = int(min(range(len(grid)), key=lambda i: abs(grid[i] - sigma)))
+        return self.step_bins[min(step, len(self.step_bins) - 1)]
 
     def get(self, stream: str, step: int, block: int, n_tokens: int, device, dtype,
             pooled: bool) -> Optional[torch.Tensor]:
@@ -96,7 +110,7 @@ class ShiftVector:
     # ---- (de)serialisation -----------------------------------------------------------
     def to_safetensors_dict(self) -> Tuple[Dict[str, torch.Tensor], Dict[str, str]]:
         tensors = {f"{s}.s{t}.b{b}": v.contiguous() for (s, t, b), v in self.tensors.items()}
-        meta = {"shift_meta": json.dumps({**self.meta, "sigmas": self.sigmas})}
+        meta = {"shift_meta": json.dumps({**self.meta, "sigmas": self.sigmas, "step_bins": self.step_bins})}
         return tensors, meta
 
     @classmethod
@@ -109,7 +123,8 @@ class ShiftVector:
                 stream, s, b = key.split(".")
                 tensors[(stream, int(s[1:]), int(b[1:]))] = f.get_tensor(key)
         sigmas = meta.pop("sigmas", [])
-        return cls(tensors, sigmas, meta)
+        step_bins = meta.pop("step_bins", None)
+        return cls(tensors, sigmas, meta, step_bins)
 
 
 # --------------------------------------------------------------------------------------
@@ -193,16 +208,20 @@ def parse_index_list(text: str, n: int) -> Optional[set]:
 # Extraction: running sums of (teacher - student) block outputs
 # --------------------------------------------------------------------------------------
 class ActivationRecorder:
-    """Accumulates sum(h+) - sum(h-) per (stream, step, block) on the CPU in float32.
+    """Accumulates sum(h+) - sum(h-) per (stream, bin, block) on the CPU in float32.
 
-    Because every prompt is run once with and once without the reference, the counts of the
-    two classes are equal and the mean difference is simply (sum+ - sum-) / N."""
+    Every prompt is run once with and once without the reference from the same noise, so both
+    classes contribute the same number of rows to every key and the mean difference is
+    (sum+ - sum-) / rows+. With step bins, all steps of a bin are averaged together."""
 
-    def __init__(self, sigmas: List[float], streams: Iterable[str] = STREAMS):
+    def __init__(self, sigmas: List[float], streams: Iterable[str] = STREAMS, step_bins: Optional[List[int]] = None):
         self.sigmas = [float(s) for s in sigmas]
         self.streams = tuple(streams)
+        n_calls = max(len(self.sigmas) - 1, 1)
+        self.step_bins = list(step_bins) if step_bins else list(range(n_calls))
         self.sign = 1.0
         self.sums: Dict[Tuple[str, int, int], torch.Tensor] = {}
+        self.rows: Dict[Tuple[str, int, int], int] = {}
         self.count = {+1.0: 0, -1.0: 0}
         self.calls = 0
 
@@ -212,6 +231,8 @@ class ActivationRecorder:
 
     def _add(self, key, tensor: torch.Tensor):
         x = tensor.detach().float().sum(0).cpu() * self.sign  # sum over cond rows
+        if self.sign > 0:
+            self.rows[key] = self.rows.get(key, 0) + int(tensor.shape[0])
         if key in self.sums:
             if self.sums[key].shape != x.shape:
                 raise RuntimeError(f"[SHIFT] token layout changed during extraction for {key}: "
@@ -228,8 +249,7 @@ class ActivationRecorder:
             sigma = current_sigma(to)
             if sigma is None:
                 return out
-            grid = self.sigmas
-            step = nearest_index(grid, sigma)
+            step = self.step_bins[min(nearest_index(self.sigmas, sigma), len(self.step_bins) - 1)]
             img, txt = out["img"], out["txt"]
             rows = cond_row_mask(img.shape[0], to, img.device)
             n_gen = generated_token_count(img, to)
@@ -245,8 +265,8 @@ class ActivationRecorder:
         n_pos, n_neg = self.count[1.0], self.count[-1.0]
         if n_pos == 0 or n_pos != n_neg:
             raise RuntimeError(f"[SHIFT] unbalanced extraction: {n_pos} positive vs {n_neg} negative passes")
-        tensors = {k: (v / n_pos).to(torch.float16) for k, v in self.sums.items()}
-        return ShiftVector(tensors, self.sigmas, {**meta, "num_prompts": n_pos})
+        tensors = {k: (v / max(self.rows.get(k, 0), 1)).to(torch.float16) for k, v in self.sums.items()}
+        return ShiftVector(tensors, self.sigmas, {**meta, "num_prompts": n_pos}, self.step_bins)
 
 
 # --------------------------------------------------------------------------------------

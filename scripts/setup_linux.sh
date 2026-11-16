@@ -3,6 +3,7 @@
 # ComfyUI goes to ../ComfyUI-shift next to this repo (override with COMFY_DIR=/path).
 #   bash scripts/setup_linux.sh            # everything
 #   SKIP_MODELS=1 bash scripts/setup_linux.sh
+#   MODELS="4b 9b-base" HF_TOKEN=hf_... bash scripts/setup_linux.sh
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMFY="${COMFY_DIR:-$(dirname "$ROOT")/ComfyUI-shift}"; VENV="$COMFY/.venv"; CUDA="${CUDA:-cu128}"
@@ -19,11 +20,6 @@ mkdir -p "$COMFY/user/default/workflows" "$COMFY/models/shift_vectors"
 cp "$ROOT"/example_workflows/*.json "$COMFY/user/default/workflows/"
 cp "$ROOT"/references/*.jpg "$COMFY/input/"
 
-if [ -z "${SKIP_MODELS:-}" ]; then
-  dl() { mkdir -p "$COMFY/models/$1"; curl -L --fail -C - -o "$COMFY/models/$1/$2" "$3"; }
-  dl diffusion_models flux-2-klein-4b.safetensors https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors
-  dl text_encoders    qwen_3_4b.safetensors       https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors
-  dl vae              flux2-vae.safetensors       https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors
-fi
+[ -z "${SKIP_MODELS:-}" ] && COMFY_DIR="$COMFY" bash "$ROOT/scripts/download_models.sh"
 echo "$COMFY" > "$ROOT/.comfy_dir"
 echo "Done. Start: bash scripts/run_linux.sh   (then open port 8188)"
