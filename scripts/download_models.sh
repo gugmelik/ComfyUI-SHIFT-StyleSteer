@@ -19,15 +19,15 @@ dl() {  # dir name url   (resumable; each file once per run)
   curl -L --fail -C - ${auth[@]+"${auth[@]}"} -o "$COMFY/models/$1/$2" "$3" || { echo "download failed: $3 (gated? accept license, set HF_TOKEN)"; exit 1; }
 }
 te4() { dl text_encoders qwen_3_4b.safetensors https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors; }
-te9() { dl text_encoders qwen_3_8b_fp8mixed.safetensors https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors; }
+te9() { dl text_encoders qwen_3_8b.safetensors https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b.safetensors; }
 vae() { dl vae flux2-vae.safetensors https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors; }
 [ "${MODELS:-4b}" = all ] && MODELS="4b 4b-base 9b 9b-base"
 for m in ${MODELS:-4b}; do
   case "$m" in
     4b)      dl diffusion_models flux-2-klein-4b.safetensors https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors; te4; vae;;
     4b-base) dl diffusion_models flux-2-klein-base-4b-fp8.safetensors https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors; te4; vae;;
-    9b)      dl diffusion_models flux-2-klein-9b-fp8.safetensors https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors; te9; vae;;
-    9b-base) dl diffusion_models flux-2-klein-base-9b-fp8.safetensors https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors; te9; vae;;
+    9b)      dl diffusion_models flux-2-klein-9b.safetensors https://huggingface.co/black-forest-labs/FLUX.2-klein-9B/resolve/main/flux-2-klein-9b.safetensors; te9; vae;;
+    9b-base) dl diffusion_models flux-2-klein-base-9b.safetensors https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9B/resolve/main/flux-2-klein-base-9b.safetensors; te9; vae;;
     *) echo "unknown model $m (4b 4b-base 9b 9b-base all)"; exit 1;;
   esac
 done

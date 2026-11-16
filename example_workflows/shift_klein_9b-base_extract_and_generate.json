@@ -22,7 +22,7 @@
         "Node name for S&R": "MarkdownNote"
       },
       "widgets_values": [
-        "## SHIFT reference-image style steering - FLUX.2 Klein 9B Base (non-commercial)\n\n**1. Extract** (top): every prompt is run twice from the same noise, once with the reference image\n(Klein I2I = teacher) and once without (T2I = student). The double-stream block outputs are recorded,\nreference tokens are cropped, and the mean difference is the steering field.\n\n**2. Generate** (bottom): plain text-to-image, **no reference image**. The apply node patches the\ndouble blocks: `h <- |h| (h + a v) / |h + a v|` on the image stream.\nLeft = unsteered, right = steered, same seed.\n\nTips\n- `strength_img` 4-8 is a good start; sweep it. Large values copy the reference *content*.\n- Prompts for extraction: content only, no style words.\n- **Base model**: 20 steps, cfg 5, empty negative prompt. Extraction runs 8 prompts x 2 passes x 20 steps, so it is ~5x slower than distilled. `step_bins = 4` averages the 20 steps into 4 groups to keep the vector small.\n- 9B weights are under the FLUX Non-Commercial License: accept it on Hugging Face before downloading.\n- Vectors are model-specific (4B / 9B / base / distilled) and saved to `ComfyUI/models/shift_vectors/`.\n\nModels: `flux-2-klein-base-9b-fp8.safetensors` (diffusion_models), `qwen_3_8b_fp8mixed.safetensors` (text_encoders), `flux2-vae.safetensors` (vae).\n"
+        "## SHIFT reference-image style steering - FLUX.2 Klein 9B Base (non-commercial)\n\n**1. Extract** (top): every prompt is run twice from the same noise, once with the reference image\n(Klein I2I = teacher) and once without (T2I = student). The double-stream block outputs are recorded,\nreference tokens are cropped, and the mean difference is the steering field.\n\n**2. Generate** (bottom): plain text-to-image, **no reference image**. The apply node patches the\ndouble blocks: `h <- |h| (h + a v) / |h + a v|` on the image stream.\nLeft = unsteered, right = steered, same seed.\n\nTips\n- `strength_img` 4-8 is a good start; sweep it. Large values copy the reference *content*.\n- Prompts for extraction: content only, no style words.\n- **Base model**: 20 steps, cfg 5, empty negative prompt. Extraction runs 8 prompts x 2 passes x 20 steps, so it is ~5x slower than distilled. `step_bins = 4` averages the 20 steps into 4 groups to keep the vector small.\n- 9B weights are under the FLUX Non-Commercial License: accept it on Hugging Face before downloading.\n- Vectors are model-specific (4B / 9B / base / distilled) and saved to `ComfyUI/models/shift_vectors/`.\n\nModels: `flux-2-klein-base-9b.safetensors` (diffusion_models), `qwen_3_8b.safetensors` (text_encoders), `flux2-vae.safetensors` (vae).\n"
       ]
     },
     {
@@ -56,14 +56,14 @@
         "Node name for S&R": "UNETLoader",
         "models": [
           {
-            "name": "flux-2-klein-base-9b-fp8.safetensors",
-            "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors",
+            "name": "flux-2-klein-base-9b.safetensors",
+            "url": "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9B/resolve/main/flux-2-klein-base-9b.safetensors",
             "directory": "diffusion_models"
           }
         ]
       },
       "widgets_values": [
-        "flux-2-klein-base-9b-fp8.safetensors",
+        "flux-2-klein-base-9b.safetensors",
         "default"
       ]
     },
@@ -100,14 +100,14 @@
         "Node name for S&R": "CLIPLoader",
         "models": [
           {
-            "name": "qwen_3_8b_fp8mixed.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors",
+            "name": "qwen_3_8b.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b.safetensors",
             "directory": "text_encoders"
           }
         ]
       },
       "widgets_values": [
-        "qwen_3_8b_fp8mixed.safetensors",
+        "qwen_3_8b.safetensors",
         "flux2",
         "default"
       ]

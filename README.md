@@ -62,8 +62,8 @@ ComfyUI's official Klein templates:
 | --- | --- | --- | --- | --- |
 | **4B** (distilled) | [`flux-2-klein-4b.safetensors`](https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors) | [`qwen_3_4b.safetensors`](https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors) | 4 steps, cfg 1 | Apache-2.0 |
 | **4B Base** | [`flux-2-klein-base-4b-fp8.safetensors`](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors) | `qwen_3_4b.safetensors` | 20 steps, cfg 5 | Apache-2.0 |
-| **9B** (distilled) | [`flux-2-klein-9b-fp8.safetensors`](https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors) | [`qwen_3_8b_fp8mixed.safetensors`](https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors) | 4 steps, cfg 1 | FLUX Non-Commercial |
-| **9B Base** | [`flux-2-klein-base-9b-fp8.safetensors`](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors) | `qwen_3_8b_fp8mixed.safetensors` | 20 steps, cfg 5 | FLUX Non-Commercial |
+| **9B** (distilled) | [`flux-2-klein-9b.safetensors`](https://huggingface.co/black-forest-labs/FLUX.2-klein-9B/resolve/main/flux-2-klein-9b.safetensors) | [`qwen_3_8b.safetensors`](https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b.safetensors) | 4 steps, cfg 1 | FLUX Non-Commercial |
+| **9B Base** | [`flux-2-klein-base-9b.safetensors`](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9B/resolve/main/flux-2-klein-base-9b.safetensors) | `qwen_3_8b.safetensors` | 20 steps, cfg 5 | FLUX Non-Commercial |
 
 All four use the same VAE: [`flux2-vae.safetensors`](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors), in `models/vae`.
 
@@ -114,7 +114,9 @@ size as a distilled one. Set it to `0` to keep one field per step; that makes th
 larger.
 
 **Hardware:** for 4B, an NVIDIA GPU with 16 GB of VRAM or more is comfortable; with 8–12 GB, start
-ComfyUI with `--lowvram`. For 9B (fp8), plan on 24 GB or more.
+ComfyUI with `--lowvram`. The 9B variants use the full **bf16** weights (about 18 GB diffusion model
+plus a 16 GB text encoder). ComfyUI moves the text encoder off the GPU while sampling, but plan on
+a **48 GB** GPU (A6000 / L40S / A100) for comfortable extraction, or 32 GB with `--lowvram`.
 
 ---
 

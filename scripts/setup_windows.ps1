@@ -81,13 +81,13 @@ New-Item -ItemType Directory -Force -Path (Join-Path $Comfy "models\shift_vector
 # ---------------------------------------------------------------- models
 if (-not $SkipModels) {
     $TE4 = @{ dir = "text_encoders"; name = "qwen_3_4b.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors" }
-    $TE9 = @{ dir = "text_encoders"; name = "qwen_3_8b_fp8mixed.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors" }
+    $TE9 = @{ dir = "text_encoders"; name = "qwen_3_8b.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b.safetensors" }
     $VAE = @{ dir = "vae"; name = "flux2-vae.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors" }
     $Catalog = @{
         "4b"      = @(@{ dir = "diffusion_models"; name = "flux-2-klein-4b.safetensors"; url = "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors" }, $TE4, $VAE)
         "4b-base" = @(@{ dir = "diffusion_models"; name = "flux-2-klein-base-4b-fp8.safetensors"; url = "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors" }, $TE4, $VAE)
-        "9b"      = @(@{ dir = "diffusion_models"; name = "flux-2-klein-9b-fp8.safetensors"; url = "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors" }, $TE9, $VAE)
-        "9b-base" = @(@{ dir = "diffusion_models"; name = "flux-2-klein-base-9b-fp8.safetensors"; url = "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors" }, $TE9, $VAE)
+        "9b"      = @(@{ dir = "diffusion_models"; name = "flux-2-klein-9b.safetensors"; url = "https://huggingface.co/black-forest-labs/FLUX.2-klein-9B/resolve/main/flux-2-klein-9b.safetensors" }, $TE9, $VAE)
+        "9b-base" = @(@{ dir = "diffusion_models"; name = "flux-2-klein-base-9b.safetensors"; url = "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9B/resolve/main/flux-2-klein-base-9b.safetensors" }, $TE9, $VAE)
     }
     $Wanted = @()
     foreach ($m in ($Models -split ",")) { $m = $m.Trim().ToLower(); if ($m -eq "all") { $Wanted += $Catalog.Keys } elseif ($m) { $Wanted += $m } }

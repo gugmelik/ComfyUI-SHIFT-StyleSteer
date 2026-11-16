@@ -9,7 +9,7 @@ REF = "monet_water_lilies.jpg"
 VAE = "flux2-vae.safetensors"
 VAE_URL = "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"
 TE4 = ("qwen_3_4b.safetensors", "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors")
-TE9 = ("qwen_3_8b_fp8mixed.safetensors", "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors")
+TE9 = ("qwen_3_8b.safetensors", "https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b.safetensors")
 
 # Model files and sampler settings follow ComfyUI's official Klein templates.
 VARIANTS = {
@@ -20,10 +20,10 @@ VARIANTS = {
                     unet=("flux-2-klein-base-4b-fp8.safetensors", "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4b-fp8/resolve/main/flux-2-klein-base-4b-fp8.safetensors"),
                     te=TE4, steps=20, cfg=5.0, base=True, prompts=8, prefix="klein4b_base_monet"),
     "9b": dict(label="FLUX.2 Klein 9B (distilled, non-commercial)",
-               unet=("flux-2-klein-9b-fp8.safetensors", "https://huggingface.co/black-forest-labs/FLUX.2-klein-9b-fp8/resolve/main/flux-2-klein-9b-fp8.safetensors"),
+               unet=("flux-2-klein-9b.safetensors", "https://huggingface.co/black-forest-labs/FLUX.2-klein-9B/resolve/main/flux-2-klein-9b.safetensors"),
                te=TE9, steps=4, cfg=1.0, base=False, prompts=16, prefix="klein9b_monet"),
     "9b-base": dict(label="FLUX.2 Klein 9B Base (non-commercial)",
-                    unet=("flux-2-klein-base-9b-fp8.safetensors", "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9b-fp8/resolve/main/flux-2-klein-base-9b-fp8.safetensors"),
+                    unet=("flux-2-klein-base-9b.safetensors", "https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9B/resolve/main/flux-2-klein-base-9b.safetensors"),
                     te=TE9, steps=20, cfg=5.0, base=True, prompts=8, prefix="klein9b_base_monet"),
 }
 PROMPTS = """a red fox in the snow
