@@ -6,7 +6,7 @@ Builds a *tiny random* FLUX.2-Klein-shaped model inside a real ComfyUI checkout 
 and checks that the vector is non-zero, that reference tokens were cropped, that steering
 changes the output and that strength 0 is a no-op.
 
-    python tests/smoke_test.py --comfy C:\\dev\\shift-klein-comfyui\\ComfyUI
+    python tests/smoke_test.py --comfy C:\\dev\\ComfyUI-shift
 """
 
 import argparse
@@ -21,7 +21,6 @@ cli = ap.parse_args()
 sys.path.insert(0, os.path.abspath(cli.comfy))
 sys.argv = [sys.argv[0], "--cpu"]
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))  # so `import ComfyUI-SHIFT-StyleSteer` works via importlib
 
 import importlib.util  # noqa: E402
 
@@ -39,7 +38,7 @@ import comfy.supported_models  # noqa: E402
 tmp_models = tempfile.mkdtemp()
 folder_paths.models_dir = tmp_models
 
-pkg_dir = os.path.join(os.path.dirname(HERE), "ComfyUI-SHIFT-StyleSteer")
+pkg_dir = os.path.dirname(HERE)  # repo root = the custom node package
 spec = importlib.util.spec_from_file_location("shift_steer", os.path.join(pkg_dir, "__init__.py"),
                                               submodule_search_locations=[pkg_dir])
 shift = importlib.util.module_from_spec(spec)

@@ -1,20 +1,26 @@
-# One-time setup on Windows: ComfyUI + venv + CUDA torch + this node + FLUX.2 Klein 4B models,
-# all inside this folder (C:\dev\shift-klein-comfyui). Nothing is installed system-wide.
+# Developer setup on Windows: a separate ComfyUI install next to this repo, with its own venv,
+# CUDA torch, FLUX.2 Klein 4B models, and THIS repo linked into custom_nodes (edit here, restart ComfyUI).
+# Nothing is installed system-wide. Default layout:
+#   C:\dev\shift-klein-comfyui        <- this repo (any folder name works)
+#   C:\dev\ComfyUI-shift              <- ComfyUI + .venv + models (created by this script)
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1
 #   powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1 -SkipModels      # models already downloaded
 #   powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1 -Cuda cu126       # older NVIDIA driver
+#   powershell -ExecutionPolicy Bypass -File scripts\setup_windows.ps1 -ComfyDir D:\ComfyUI   # use / create another ComfyUI
 #
 param(
     [string]$Cuda = "cu128",
     [switch]$SkipModels,
-    [string]$Python = ""
+    [string]$Python = "",
+    [string]$ComfyDir = ""
 )
 $ErrorActionPreference = "Stop"
 $Root    = Split-Path -Parent $PSScriptRoot
-$Comfy   = Join-Path $Root "ComfyUI"
-$Venv    = Join-Path $Root ".venv"
-$NodeSrc = Join-Path $Root "ComfyUI-SHIFT-StyleSteer"
+if (-not $ComfyDir) { $ComfyDir = Join-Path (Split-Path -Parent $Root) "ComfyUI-shift" }
+$Comfy   = $ComfyDir
+$Venv    = Join-Path $Comfy ".venv"
+$NodeSrc = $Root
 
 function Step($msg) { Write-Host "`n==> $msg" -ForegroundColor Cyan }
 
@@ -63,7 +69,7 @@ Write-Host "  $Link -> $NodeSrc"
 Step "Copying workflows and reference images"
 $Wf = Join-Path $Comfy "user\default\workflows"
 New-Item -ItemType Directory -Force -Path $Wf | Out-Null
-Copy-Item (Join-Path $Root "workflows\*.json") $Wf -Force
+Copy-Item (Join-Path $Root "example_workflows\*.json") $Wf -Force
 Copy-Item (Join-Path $Root "references\*.jpg") (Join-Path $Comfy "input") -Force
 New-Item -ItemType Directory -Force -Path (Join-Path $Comfy "models\shift_vectors") | Out-Null
 
@@ -84,4 +90,5 @@ if (-not $SkipModels) {
     }
 }
 
+Set-Content (Join-Path $Root ".comfy_dir") $Comfy
 Step "Done. Start ComfyUI with:  powershell -ExecutionPolicy Bypass -File scripts\run_windows.ps1"

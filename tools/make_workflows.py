@@ -3,7 +3,7 @@
 import json
 import os
 
-OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "workflows")
+OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "example_workflows")
 
 UNET = "flux-2-klein-4b.safetensors"
 TE = "qwen_3_4b.safetensors"
@@ -96,10 +96,23 @@ class Graph:
 PURPLE = ("#323", "#535")
 
 
+MODEL_URLS = {
+    UNET: ("diffusion_models", "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors"),
+    TE: ("text_encoders", "https://huggingface.co/Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors"),
+    VAE: ("vae", "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"),
+}
+
+
+def with_model(node, name):
+    directory, url = MODEL_URLS[name]
+    node["properties"]["models"] = [{"name": name, "url": url, "directory": directory}]
+    return node
+
+
 def loaders(g, y=0):
-    unet = g.add("UNETLoader", (0, y), [UNET, "default"], (330, 90))
-    clip = g.add("CLIPLoader", (0, y + 130), [TE, "flux2", "default"], (330, 110))
-    vae = g.add("VAELoader", (0, y + 280), [VAE], (330, 60))
+    unet = with_model(g.add("UNETLoader", (0, y), [UNET, "default"], (330, 90)), UNET)
+    clip = with_model(g.add("CLIPLoader", (0, y + 130), [TE, "flux2", "default"], (330, 110)), TE)
+    vae = with_model(g.add("VAELoader", (0, y + 280), [VAE], (330, 60)), VAE)
     return unet, clip, vae
 
 
